@@ -60,10 +60,13 @@ bot.on('spawn',function() {
 
 
 
-const server = http.createServer((_request, response) => { 
-    response.writeHead(200, {"Content-Type": 'text/html'});
-    response.end('Pong!');
-});
-server.listen(process.env.PORT || 3000, () => { 
-    console.log('Web for AntiAFK is running...');
-});
+const express = require('express')
+const app = express()
+
+app.get('/', (req, res) => {
+  res.send('Hello World!')
+})
+
+app.listen(port, () => {
+  console.log(`Example app listening on port ${port}`)
+})
