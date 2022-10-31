@@ -1,94 +1,61 @@
-const http = require('http'); 
-const mineflayer = require('mineflayer');
-const CONFIG = require("./config.json");
+const mineflayer = require('mineflayer')
+const fs = require('fs');
+let rawdata = fs.readFileSync('config.json');
+let data = JSON.parse(rawdata);
+var lasttime = -1;
+var moving = 0;
+var connected = 0;
+var actions = [ 'forward', 'back', 'left', 'right']
+var lastaction;
+var pi = 3.14159;
+var moveinterval = 2; // 2 second movement interval
+var maxrandom = 5; // 0-5 seconds added to movement interval (randomly)
+var host = data["ip"];
+var port = data["port"];
+var username = data["name"]
+var bot = mineflayer.createBot({
+  host: host,
+  port: port,
+  username: username
+});
+function getRandomArbitrary(min, max) {
+       return Math.random() * (max - min) + min;
 
-let connected = false;
-const actions = ['forward', 'back', 'left', 'right', 'jump'];
-const sleep = ms=> new Promise(resovle=> setTimeout(resovle, ms));
-const getRandom = array=> array[Math.floor(Math.random() * (array.length - 0)) + 0];
-const cLog = (msg, ...args) => {
-	if(CONFIG.logger[0]) {
-		console.log(msg, ...args);
-	}
-};
-
-
-
-async function reconnect() {
-	console.log(`Trying to reconnect in ${CONFIG.retryTimes.text}...\n`);
-	connected = false;
-
-
-	await sleep(CONFIG.retryTimes.ms);
-	createAFKBot();
 }
-function createAFKBot() {
-	const bot = mineflayer.createBot({
-		host: CONFIG.host,
-		port: CONFIG.port,
-		username: CONFIG.username
-	});
+bot.on('login',function(){
+	console.log("Logged In")
+});
+bot.on('time', function() {
+    if (connected <1) {
+        return;
+    }
+    if (lasttime<0) {
+        lasttime = bot.time.age;
+    } else {
+        var randomadd = Math.random() * maxrandom * 20;
+        var interval = moveinterval*20 + randomadd;
+        if (bot.time.age - lasttime > interval) {
+            if (moving == 1) {
+                bot.setControlState(lastaction,false);
+                moving = 0;
+                lasttime = bot.time.age;
+            } else {
+                var yaw = Math.random()*pi - (0.5*pi);
+                var pitch = Math.random()*pi - (0.5*pi);
+                bot.look(yaw,pitch,false);
+                lastaction = actions[Math.floor(Math.random() * actions.length)];
+                bot.setControlState(lastaction,true);
+                moving = 1;
+                lasttime = bot.time.age;
+                bot.activateItem();
+            }
+        }
+    }
+});
 
-
-	bot.on('spawn', () => {
-		connected = true;
-		
-		async function doMoving() {
-			if(connected) {
-				const lastAction = getRandom(actions);
-
-				bot.setControlState(lastAction, true); // starts the selected random action
-				if(Math.random() < 0.5) { // 50% chance
-					bot.setControlState('sprint', true);
-				}
-				cLog(`${lastAction}${bot.getControlState('sprint')? " with sprint":''}`);
-
-				await sleep(getRandom(CONFIG.actionDelays));
-				bot.setControlState(lastAction, false); // starts the selected random action
-				bot.setControlState('sprint', false);
-			}
-
-
-			await sleep(getRandom(CONFIG.actionDelays));
-			doMoving();
-		}
-		async function changeViewPos() {
-			if(connected) {
-				const yaw = (Math.random() * Math.PI) - (0.5 * Math.PI);
-				const pitch = (Math.random() * Math.PI) - (0.5 * Math.PI);
-
-				bot.look(yaw, pitch, false);
-			}
-
-			
-			await sleep(getRandom(CONFIG.actionDelays));
-			changeViewPos();
-		}
-
-
-		changeViewPos();
-		doMoving();
-	});
-	bot.on('error', error => {
-		console.error(`AFKBot got an error: ${error}`);
-		
-		reconnect();
-	});
-	bot.on('kicked', async (rawResponse) => {
-		const response = JSON.parse(rawResponse);
-		if(!(response instanceof Error)) {
-			console.error(`\n\nAFKbot is disconnected by reason: ${response?.with?.map(v=> v.text).join('\n')}`);
-		}
-
-		reconnect();
-	});
-
-
-	bot.on('login', () => {
-		console.log(`AFKBot logged in ${CONFIG.username}\n\n`);
-	});
-}
-createAFKBot();
+bot.on('spawn',function() {
+    connected=1;
+});
 
 
 
